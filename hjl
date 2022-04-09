@@ -1,0 +1,53 @@
+//
+//  HW06smallJudah.c
+//  BookExample
+//
+//  Created by Judah Small on 4/7/22.
+//
+
+#include <stdio.h>//func librairies
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+#include <ctype.h>
+
+
+//Madlib Values
+#define STRING_LENGTH 100
+#define NUMBER_SENTENCES 5
+#define NUMBER_WORDS 5
+#define WORD_LENGTH 20
+#define NOUN "noun"
+#define ADJECTIVE "adjective"
+ 
+//file names and path
+const char * MADLIB_FILE = "madlib.txt";
+const char* PREPOSITION_FILE = "prepositions.txt";
+const char* ARTICLE_FILE = "articles.txt";
+const char* VERB_FILE = "verbs.txt";
+const char * DIRECTORY_PATH = "/Users/JudeRamone/madLibs/";
+
+
+int main(void)
+{
+    return 0;
+}
+
+void getFilePath(char* finalPath, const char* directoryPath, const char* fileName)
+{
+    ;
+}
+
+bool getWordsFromFile(int stuff)
+{
+   return 1;
+}
+void getUserWords(int stuff)
+{
+    ;
+}
+
+bool writeSentencesToFile(int stuff)
+{
+    return 1; //wow so much progress
+}
