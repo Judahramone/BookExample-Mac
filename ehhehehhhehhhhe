@@ -1,0 +1,372 @@
+/*
+ Judah Small
+
+ CS2060-001 (TTh)
+
+ OS: Windows [&macOS (current iteration has been passed back and forth between the 2 and seems to work in both environments (final compile was windows))]
+
+ Iteration 2
+
+ Due: 04/30/2022
+
+ Description: This is a current iteration of my ticket sales project this
+ itteration encompasses all user story requirements. the program
+ includes a limited access and limited attempt admin setup sequence that validates a pin, assigns the charity percentage, and prices for each
+ seat type. The validation of the completion of this sequence lets main decide if it should continue on to a ticket sales mode. The ticket sales
+ mode allows customers to select a seat type (and validate their choice), the number of tickets they want (and validate their choice), enter a
+ zipcode to "validate a credit card", decide if they want a receipt, and allows for the escape at any moment by the entry of a q. if a q is entered the admin pin must be validated within
+ the limited attempts or the program will re-enter the sales mode. If a successful quit is validated the admin print displays all of the information entered
+ by the customers (ie. number of tickets sold for each type, total sold, total sales, total donated.
+ */
+
+#include <stdlib.h> //including of librairies for functions needed
+#include <stdio.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <string.h>
+#include <limits.h>
+
+#define DOUBLE_LENGTH 7
+#define STRING_MAX  50
+#define PATH_LENGTH 100
+#define ADMIN 4932 //admin pin
+#define CHARITY_MIN 10.0 //min percentage
+#define CHARITY_MAX 30.0 //max percentage
+#define PRICE_MAX 500.00
+#define PRICE_MIN 10.00
+#define ZIP_LENGTH 5
+#define ZIP_MIN = 00000
+#define ZIP_MAX = 99999
+#define ADMIN_TRIES 4 //number of tries admin has to enter pin
+#define CHARITY_EVENT "charity" //name of charity
+#define EVENT_NAME "Denver Nuggets Game" //name of event
+
+
+//need to include double max and min
+// errno ?
+
+const char* SALES_FILE = "salesSummary.txt";
+const char* RECEIPT_FILE = "receipt.txt";
+const char* DIRECTORY_PATH = "/Users/JudeRamone/ticketSales/";
+const char* HAL_MESSAGE = "I'm sorry Dave, I'm afraid I can't do that...";
+
+
+typedef struct seatName
+{
+    double price;
+    char name[STRING_MAX]; //Name for seat type
+    char sigChar; //signal character
+    int numOTix;
+    struct seatName* nextLevel;
+    
+}SEAT;
+
+
+//done
+bool getInfo(char* inputStr);
+int intConvert(char* inputStr); // maybe try and make const
+bool rangeCheck(double receivedNo, double min, double max);
+bool zipValidate(const char* input, int zipEntry);
+double stringToDouble(char* inputStr);
+// done but not tested\|/
+void getFilePath(char* finalPath, const char* directoryPath, const char* fileName);
+bool w_or_a_ToFile(const char* formatedList, const char* filePath, char signal);// possibly be better to just pass the head of a linked list!!!!
+
+// what needs to be done
+void insertLevel(SEAT** headPtr, double price, const char* levelName); //includes getSigChar function because i will convert everything to uppercase may change to just an uppercase function within and wait to store until it meets that requirment// probably better to use a toupper user defined function (the idea for getSigChar) because we will want to uppercase the entries from the admin //  but make it more general uppercase first element of the character array entered which would be the first element in the sigChar and the first letter in the level name.
+void adminEntriesPrint(SEAT* allLevelsPtr);
+// maybe just in sales function
+//bool pinValidate(int numEntered); //str compareensure int values match // returns status of match after ADMIN_TRIES //cast double to int
+//int yesNoCompare(const char* entry);
+int charValidate(int validateType, int arraySize, const char validateArray[]); //user char validate
+//bool ticketSales(double priceForTix[], double charPerc, int tix[]);
+//double charCalc(double cost, double charPerc);
+//double tixCalc(double tixPrice, double numOTix);
+void getSigChar(SEAT **headPtr); // look up some more double ptr info so that i can be more comfortable with their overall efficacy //this will go in either user or admin area
+
+//admin function
+    //store overall values in linked list
+//users function
+    // store values of user for receipt in primitive data
+
+
+int main(void)
+{
+    //point to linked list element that contains the sigchar that user enters in function to find out price name
+    //to upper each sigChar
+   bool priceRange = false;
+   bool charityRange = false;
+   bool zipRange = false;
+   char input[STRING_MAX] = {'\0'};
+   double doubleVal = -99.9;
+   int intVal = -99;
+   // double charPerc = 0.0;
+    
+    for(size_t i = 0; i < 5; i++)
+    {
+        printf("Attempt %zu \n", i);
+        puts("Hello Dave:\nLet's run some tests");
+        
+       // puts("Enter a double:");
+       // doubleVal = (stringToDouble(input));
+        puts("Enter an integer:");
+        intVal = (intConvert(input));
+        
+      //  printf("Double value is: %.2lf\nInt value is: %d\n", doubleVal, intVal);
+        
+      //  puts("Price check");
+      ///  priceRange =(rangeCheck(doubleVal, PRICE_MIN, PRICE_MAX));
+      //  puts("Charity check");
+      //  charityRange =(rangeCheck(doubleVal, CHARITY_MIN, CHARITY_MAX));
+        puts("Zip check");
+        zipRange = zipValidate(input, intVal);
+        
+        /* if (priceRange ==false)
+        {
+            puts(HAL_MESSAGE);
+            puts(
+        }
+            if (charityRange ==false)
+            */
+        
+    }
+    return 0;
+}
+
+void getFilePath(char* finalPath, const char* directoryPath, const char* fileName)
+{
+    strcpy(finalPath, directoryPath);
+    strcat(finalPath, fileName);
+}
+
+bool w_or_a_ToFile( const char* formattedList, const char* filePath, char signal) //signal if wanting to write follow w signal path if wanting to append follow a signalpath
+{
+    FILE* saleFile;
+    bool wORa = false; //able to write or append
+    
+    if (signal == 'w')
+    {
+        if ((saleFile = fopen(filePath, "w")) == NULL)
+        {
+            puts(HAL_MESSAGE);
+            puts("file could not be written");
+        }
+        else
+        {
+            wORa=true;
+            puts("Generating Sales Report...");
+            //use sprintf fputs// is there a function that will allow multiple outputs? ie tee in linux sadly not that i have found so far
+            //print salessummary specific headers to file
+            //print total info
+        }
+    }
+    
+    else if (signal == 'a')
+    {
+        if ((saleFile = fopen(filePath, "a")) == NULL) //if the file does not exist
+        {
+            puts(HAL_MESSAGE);
+            puts("file does not exist"); //would you like to create one? would need to pass directory info
+        }
+        else
+        {
+            wORa= true;
+            puts("Generating Reciept...");
+            //use sprintf fputs// is there a function that will allow multiple outputs? ie tee in linux sadly not that i have found so far
+            //print reciept specific headers to console and file
+            //print user specific info
+        }
+    }
+    
+    else //read case signal would be r  ////////not necessary just trying to catch or think about how it could be utilized at a later time
+    {
+        if ((saleFile = fopen(filePath, "r")) == NULL) //if the file does not exist
+        {
+            puts(HAL_MESSAGE);
+            puts("file can not be read"); //would you like to create one? would need to pass directory info
+        }
+        
+    }
+    
+    return wORa;
+}
+
+//bool adminPinValidate(void)
+//{
+   // char input[STRING_MAX] = {'\0'};
+ //   double doubleVal = -99.9;
+    //doubleVal=(stringToDouble(input));
+    
+//}
+
+bool zipValidate(const char* input, int zipEntry)
+{
+    bool validZip = false;
+    int length = 0;
+    
+    length = (int)strlen(input);
+    
+    if(length != ZIP_LENGTH)
+    {
+        puts(HAL_MESSAGE);
+        puts("wrong number of characters");
+    }
+    
+    else
+    {
+        validZip = (rangeCheck(zipEntry, ZIP_MIN, ZIP_MAX));
+    }
+    
+    return validZip;
+}
+
+bool rangeCheck(double receivedNo, double min, double max)
+{
+    bool inRange = false;
+    
+    /*if(convertedDouble < 1.0) /////maybe just do this in admiin setup area before sending info in.
+    {
+        convertedDouble=(convertedDouble*100);
+        if((CHARITY_MIN <= convertedDouble) && (CHARITY_MAX >= convertedDouble))
+        {
+            inRange=true;
+        }
+        else
+        {
+            puts(HAL_MESSAGE);
+            puts("entry out of range");
+        }
+    }*/// possibly throw in a signal characer to  allow for this if not its whatever next line would be an else if
+    
+    if((min <= receivedNo) && (max >= receivedNo))
+    {
+        inRange=true;
+    }
+    
+    else
+    {
+        puts(HAL_MESSAGE);
+        puts("entry out of range");
+    }
+    return inRange;
+}
+
+
+int intConvert(char* input) // can i make this constant somehow
+{
+    bool strictInt(double convertedDouble);
+    
+    bool validInt = false;
+    double doubledString = 0.0;
+    int convertedInt = -99;
+
+    doubledString =(stringToDouble(input));
+    
+    if (doubledString != -99.9)
+    {
+        validInt =(strictInt(doubledString));
+    
+        if (validInt == true)
+        {
+            convertedInt=((int)doubledString);
+        }
+    }
+    
+    else
+    {
+        puts(HAL_MESSAGE);
+        puts("invalid numerical information supplied");
+    }
+    
+    return convertedInt;
+}
+
+bool strictInt(double convertedDouble) //possibly pass the address of int to be modified and it only modifies if it passes the test or do that in main
+{
+    bool success = false;
+    double conversion = -99.9;
+    
+    if(convertedDouble != 0.0)
+    {
+        conversion = (convertedDouble/((int)convertedDouble));
+        if (conversion == 1)
+        {
+            success = true;
+        }
+        else
+        {
+            puts(HAL_MESSAGE);
+            puts("Number is not a whole integer");
+        }
+    }
+    else //takes care of 0 case
+    {
+        success = true;
+    }
+    return success;
+}
+
+bool getInfo(char* inputStr)
+{
+    bool successful = false;
+    
+    successful=(fgets(inputStr, STRING_MAX, stdin));
+    
+    for (size_t i = 0; i <= STRING_MAX; i++)
+    {
+       if (inputStr[i] == '\n')
+        {
+           inputStr[i] = '\0';
+            i = STRING_MAX;
+        }
+        
+    }
+    return successful;
+}
+
+double stringToDouble(char* inputStr)
+{
+    bool getInputSuccess = false;
+    double value = -99.9;
+    char* remaining = NULL;
+    
+    getInputSuccess=(getInfo(inputStr));
+    
+    if(getInputSuccess == true)
+    {
+        double conversion = strtod(inputStr, &remaining);
+    
+        if(remaining == inputStr) // if the double is null
+        {
+            puts(HAL_MESSAGE);
+            puts("No valid entry was made");
+        }
+        else if (*remaining != '\0')
+        {
+            puts(HAL_MESSAGE);
+            puts("invalid entry");
+        }
+    
+        else if((LONG_MIN < conversion) && (LONG_MAX > conversion))
+        {
+            value = conversion;
+        }
+    
+        else
+        {
+            puts(HAL_MESSAGE);
+            puts("invalid entry range error");
+        }
+    }
+    
+    else
+    {
+        puts(HAL_MESSAGE);
+        puts("Unable to get input");
+    }
+    
+    return value;
+}
+
+
+
