@@ -26,9 +26,12 @@
 #include <string.h>
 #include <limits.h>
 
+#define YN 2
+#define PACKAGETYPES 4
 #define DOUBLE_LENGTH 7
 #define STRING_MAX  50
 #define PATH_LENGTH 100
+#define SUMMARY_MAX 500
 #define ADMIN_PIN 4932 //admin pin
 #define CHARITY_MIN 10.0 //min percentage
 #define CHARITY_MAX 30.0 //max percentage
@@ -40,13 +43,17 @@
 #define ZIP_MIN 00000
 #define ZIP_MAX 99999
 #define ADMIN_TRIES 4 //number of tries admin has to enter pin
-#define CHARITY_EVENT "charity" //name of charity
+#define CHARITY_EVENT "Charity" //name of charity
 #define EVENT_NAME "Denver Nuggets Game" //name of event
+#define QUIT "Quit"
 
 
 //need to include double max and min
 // errno ?
 
+const char* YNarray[] = { "N", "Y" };
+const int PACKAGES[] = { 1, 2, 3, 4 };
+const char* PACKAGENAMES[] = { "Single Pack", "Double Pack", "Triple Pack", "Family Pack" };
 const char* SALES_FILE = "salesSummary.txt";
 const char* RECEIPT_FILE = "receipt.txt";
 const char* DIRECTORY_PATH = "/Users/JudeRamone/ticketSales/";
@@ -74,21 +81,15 @@ bool zipValidate(const char* input, int zipEntry);
 bool charValidate(const char* input);
 double stringToDouble(char* inputStr);
 void adminSetup(SEAT** headPtr, int noSeatTypes, char* inputStr, double* charityPercent);
-
-bool adminPinValidate(char* inputStr);
-// done but not tested\|/
 void getFilePath(char* finalPath, const char* directoryPath, const char* fileName);
+bool adminPinValidate(char* inputStr);
+double charCalc(double cost, double charPerc);
+double tixCalc(double tixPrice, double numOTix);
+
+
+// done but not tested\|/
 bool w_or_a_ToFile(const char* formatedList, const char* filePath, char signal);// possibly be better to just pass the head of a linked list!!!!
-
-
-void userSeatInfo(SEAT* signalOrderedPtr);
-
-// what needs to be done
-
-
-void getSigChar(SEAT **headPtr); // look up some more double ptr info so that i can be more comfortable with their overall efficacy //this will go in either user or admin area
-//users function
-    // store values of user for receipt in primitive data
+bool yesNo (char* entry);
 
 
 int main(void)
@@ -99,8 +100,12 @@ int main(void)
     char input[STRING_MAX] = {'\0' };
     SEAT* headPtr= NULL;
     double charityPerc = 0.0;
-   // char summaryPath[PATH_LENGTH] = {'\0'};
-   // char receiptPath[PATH_LENGTH] = {'\0'};
+    char summaryPath[PATH_LENGTH] = {'\0'};
+    char receiptPath[PATH_LENGTH] = {'\0'};
+    
+    getFilePath(summaryPath, DIRECTORY_PATH, SALES_FILE);
+    getFilePath(receiptPath, DIRECTORY_PATH, RECEIPT_FILE);
+    
     pinSuccess=(adminPinValidate(input));
     
     if (pinSuccess == true)
@@ -120,9 +125,6 @@ int main(void)
         }
         adminSetup(&headPtr, noSeatLevels, input, &charityPerc);
     }
-    puts("\nWelcome to HAL's ticket Sales!\n");
-    
-    userSeatInfo(headPtr);
 
     puts("This program can serve no purpose anymore, Goodbye.");
     return 0;
@@ -166,7 +168,7 @@ bool w_or_a_ToFile( const char* formattedList, const char* filePath, char signal
         else
         {
             wORa= true;
-            puts("Generating Reciept...");
+            puts("Generating Receipt...");
             //use sprintf fputs// is there a function that will allow multiple outputs? ie tee in linux sadly not that i have found so far
             //print reciept specific headers to console and file
             //print user specific info
@@ -515,7 +517,7 @@ void adminSeatInfo(SEAT* signalOrderedPtr)
 {
     if(signalOrderedPtr != NULL)
     {
-        puts("Dave, the seat levels are:");
+        puts("\nDave, the seat levels are:");
         SEAT* currentLevel = signalOrderedPtr;
         
         while (currentLevel != NULL)
@@ -531,7 +533,7 @@ void adminSeatInfo(SEAT* signalOrderedPtr)
     }
 }
 
-void userSeatInfo(SEAT* signalOrderedPtr)
+void userSeatInfo(SEAT* signalOrderedPtr, double charityPerc)
 {
     if(signalOrderedPtr != NULL)
     {
@@ -543,10 +545,241 @@ void userSeatInfo(SEAT* signalOrderedPtr)
             printf("%s (%s) %s%.2lf\n", currentLevel->name, currentLevel->sigChar, CURRENCY_TYPE, currentLevel->price);
             currentLevel = currentLevel->nextLevel;
         }
+        printf("%.2lf percent of your tickets purchased will be donated to %s", charityPerc, CHARITY_EVENT);
     }
     else
     {
         puts(HAL_MESSAGE);
-        puts("There is no information to print");
+        puts("There are no available seats for purchase");
     }
+}
+
+void userReceiptFormat(char* userString, int userNumTix, SEAT* levelSelected, double totalPrice, double donation, double charityPercent)
+{
+    
+    sprintf(userString, "%s Ticket Sale Receipt\n\n%s x %d @ %s %.2lf/nYour total is: %.2lf\n %.2lf percent of your sales (%s%.2lf) was donated to %s\n THANK YOU FOR YOUR PURCHASE\n\n", EVENT_NAME, levelSelected->name, userNumTix, CURRENCY_TYPE, levelSelected->price, totalPrice, charityPercent, CURRENCY_TYPE, donation, CHARITY_EVENT);
+    
+}
+
+void adminSalesSummaryFormat(SEAT* headPtr, char* salesString, double charityPercent)
+{
+    
+}
+
+SEAT* levelFound(SEAT* headPtr, const char* signal)
+{
+    SEAT* previousLevel = NULL;
+    SEAT* currentLevel = headPtr;
+    
+    if((strcmp(currentLevel->sigChar, signal)) == 0)
+    {
+        //first seat type
+    }
+    else
+    {
+        previousLevel = headPtr;
+        currentLevel = headPtr->nextLevel;
+        
+        while((currentLevel != NULL) && (strcmp(currentLevel->sigChar, signal)) != 0)
+        {
+            previousLevel = currentLevel;
+            currentLevel = currentLevel->nextLevel;
+        }
+        
+        if(currentLevel == NULL)
+        {
+            printf("'%s' is not a valid seat signal\n", signal);
+        }
+    }
+    return currentLevel;
+}
+
+bool salesMode(SEAT* headPtr, double charityPerc)
+{
+    bool quit = false;
+    bool pinSuccess= false;
+    bool readInput = false;
+    bool validSelection = false;
+    bool singleChar = false;
+    int userTickets = 0;
+    SEAT* userLevel = NULL;
+    char selection[STRING_MAX] = {'\0'};
+    
+    void userSeatInfo(SEAT* signalOrderedPtr, double charityPerc);
+    int packageSelect(void);
+    
+    printf("\nWelcome to HAL's %s %s ticket Sales!\n", EVENT_NAME, CHARITY_EVENT);
+    
+    while((quit == false) || (validSelection == false))
+    {
+        userSeatInfo(headPtr, charityPerc);
+        readInput = (getInfo(selection));
+        if (readInput == true)
+        {
+            if(strcmp(selection, QUIT) == 0)
+            {
+                pinSuccess=(adminPinValidate(selection));
+                if(pinSuccess == true)
+                {
+                    quit = true;
+                }
+                else
+                {
+                    puts(HAL_MESSAGE);
+                    puts("This mission is too important for me to allow you to jeopordize it.");
+                }
+            }
+            else
+            {
+                selection[0]=toupper(selection[0]);
+                singleChar=(charValidate(selection));
+                if (singleChar == true)
+                {
+                    userLevel =(levelFound(headPtr, selection));
+                    if (userLevel != NULL)
+                    {
+                        printf("You have selected %s, do you wish to continue?", userLevel->name);
+                        
+                        validSelection = yesNo(selection);
+                    }
+                    else
+                    {
+                        puts("Please try again");
+                    }
+                }
+                else
+                {
+                    puts("Please try again");
+                }
+            }
+        }
+    }
+    
+    if(quit == false)
+    {
+        userTickets = (packageSelect());
+        // update linked list info
+        // ask for receipt
+    }
+    else
+    {
+        // create sum of tickets
+        //update sales info per seat and total
+        // update donation per seat and total
+        //
+        
+    }
+    return quit;
+    
+}
+
+
+double tixCalc(double tixPrice, double numOTix) // calculates total amount of tickets by having the ticket price and number of tickets multiplied together
+{
+   double totalPrice = 0.0;
+
+   totalPrice = tixPrice * numOTix;
+
+   return totalPrice;
+
+}
+
+double charCalc(double cost, double charPerc) // calculates the amount donated takes the charity percent and the cost and calculates what will be donated
+{
+    double whatsDonated = 0.0;
+
+    whatsDonated = cost * (charPerc /100);
+
+    return whatsDonated;
+}
+
+int packageSelect(void)
+{
+    int package = 0;
+    int packageVal = 0;
+    bool confirmed = false;
+    char packageSelect[STRING_MAX] = {'\0'};
+    char ynSelect[STRING_MAX] = {'\0'};
+
+    while(confirmed == false)
+    {
+        bool validType = 0;
+        while (validType == false) // only breaks when a valid entry has been made and confirmed
+        {
+            puts("Package options are: ");
+            for (size_t i = 0; i < PACKAGETYPES; i++)
+            {
+                printf("%d%s\t%s\n", PACKAGES[i], ")", PACKAGENAMES[i]); //prints prices next to each seattype
+            }
+
+            puts("Enter your package selection:");
+            package = (intConvert(packageSelect));
+        
+            if(package == -99)
+            {
+                puts("Not an acceptable selection");
+            }
+        
+            else
+            {
+                for (int i = 0; i < PACKAGETYPES; i++)
+                {
+                    if (package == PACKAGES[i])  //loops through the entire array checking for equivalency at each index of the array
+                    {
+                        packageVal = (i+1); // takes the value of the index that was equivalent
+                        i = PACKAGETYPES;  //sets it to the end of the array in order for the loop to end once the value has found equivalency
+                    }
+                }
+                if (packageVal != 0)
+                {
+                    validType = true;
+                }
+                else
+                {
+                    puts("Not an available package type");
+                }
+            
+            }
+        }
+        printf("You have selected the %s do you wish to continue?\n", PACKAGENAMES[(packageVal-1)]);
+        
+        confirmed=(yesNo(ynSelect));
+
+    }
+
+    return packageVal; //returns value of what array element was matched in either array
+}
+
+bool yesNo (char* entry)
+{
+    bool validChar = false;
+    bool validYN = false;
+    bool yN = false;
+    
+    while (validYN == false)
+    {
+        puts("Enter Y or N");
+        validChar=((getInfo(entry))&&(charValidate(entry)));
+        if(validChar == false)
+        {
+            puts("Please try again");
+        }
+        else if(strcmp(entry, YNarray[1] ) == 0)
+        {
+            yN=true;
+            validYN = true;
+        }
+        else if(strcmp(entry, YNarray[0] ) == 0)
+        {
+            puts("Returning to selection options...");
+            yN=false;
+            validYN = true;
+        }
+        else
+        {
+            puts("Please try again");
+        }
+    }
+
+    return yN;
 }
