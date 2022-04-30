@@ -1,0 +1,1018 @@
+/*
+ Judah Small
+
+ CS2060-001 (TTh)
+
+ OS: Mac
+ Iteration 2
+
+ Due: 04/30/2022
+
+ Description: This iteration takes my previous project iteration, that was implemented using the iteration index of arrays, scanf, and standard output, and refactors the programs requirements using linked lists, file output, fgets, and the allocation of memmory. I also had 2001 a Space Odyssey playing during my refactoring so I felt compelled to through some nods.
+    The Programs requirements are to have an admin enter a pin within a (modifiable) number of attempts. If the admin is successful they are brought to the next part of the program where they select the ammount donated to charity (within range) and can insert as many seat levels as they like, during this insertion period they create a name for the seat type, select the character that will be used to signal the seat type in sales mode, and include a price for the seat type (within range). Once the admin has set up the seat types the program enters sales mode. In sales mode the user is listed with their available options and with a successful signal character can pick a seat type. The admin also has the ability to escape sales mode within seat selection by using the entry 'quit'. Once they have selected the seat type they have the opportunity to confirm their selection. Once a selection has been confirmed they are given the opportunity to choose what package of seats they would like and once confirmed they are informed of their total price. The user must then input a valid 5 digit zipcode to confirm their purchase. once their purchase has completed they are given the opportunity to have a receipt, if they confirm that they desire a receipt then one will be printed to the console and be appended to the receipt file. Sales mode will continue until the admin enters 'quit' during ticket selection. once the admin enters quit they must confirm that they have the right by re entering the admin pin within the alloted attempts. If successful all sale information is compiled produced to the sreen and a new file is written that includes the totl sale information, and the program ends. If they are not successful sales mode will resume.
+ */
+
+#include <stdlib.h> //including of librairies for functions needed
+#include <stdio.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <string.h>
+#include <limits.h>
+
+#define YN 2 // the ammount of values yes and no can be checked against
+#define PACKAGETYPES 4 // number of package types
+#define STRING_MAX  50 /// size for strings to use within the program
+#define PATH_LENGTH 100 // length for file paths
+#define SUMMARY_MAX 1000 // length for formatted summary data
+#define ADMIN_PIN 4932 //admin pin
+#define CHARITY_MIN 10.0 //min percentage
+#define CHARITY_MAX 30.0 //max percentage
+#define PRICE_MAX 500.00 //max ticket price
+#define PRICE_MIN 10.00 // min ticket price
+#define ZIP_LENGTH 5 // the length that a zipcode must be
+#define CHAR_LENGTH 1 // could be modularized to accept larger signals but for now its a single character
+#define CURRENCY_TYPE "$" // to allow for different currencies
+#define ZIP_MIN 00000 // for range check may not even be necessary
+#define ZIP_MAX 99999
+#define ADMIN_TRIES 4 //number of tries admin has to enter pin
+#define CHARITY_EVENT "Charity" //name of charity
+#define EVENT_NAME "Denver Nuggets Game" //name of event
+
+
+#define QUIT "quit" // code that must be entered to quit
+
+
+const char* YNarray[] = { "N", "Y" };  // 'strings' to check for
+const int PACKAGES[] = { 1, 2, 3, 4 }; // package identifiers doubles as the ammount of tickets for each package but could be changed and identifier would just be i+1 in a for loop < packageTypes
+const char* PACKAGENAMES[] = { "Single Pack", "Double Pack", "Triple Pack", "Family Pack" }; //names of packages
+
+
+const char* SALES_FILE = "salesSummary.txt"; //receipt paths and names
+const char* RECEIPT_FILE = "receipt.txt";
+const char* DIRECTORY_PATH = "/Users/JudeRamone/ticketSales/";
+
+
+const char* DIVIDER = "------------------------------------------------------------------------------";
+const char* LEVEL = "Level"; //information used in sales summary can be modified and allows for formatting
+const char* PRICE = "Price";
+const char* SOLD = "Sold";
+const char* SALES = "Sales";
+const char* CHARITY = "Donation";
+
+const char* HAL_MESSAGE = "I'm sorry Dave, I'm afraid I can't do that..."; // for fun
+
+
+typedef struct seatName // structure for seat types
+{
+    char name[STRING_MAX]; //Name for seat type
+    char sigChar[STRING_MAX]; //signal character
+    double price; // price to be used
+    int numOTix; // number purchased
+    double sales; // price of sales
+    double raisedForCharity; // ammount raised for charity
+    struct seatName* nextLevel; // self referential
+    
+}SEAT;
+
+
+bool getInfo(char* inputStr); //gets info from user and returns if successful
+int intConvert(char* inputStr); //takes input from user and validates that it is an integer returns the integer if valid or -99 if not
+bool rangeCheck(double receivedNo, double min, double max); //returns if the entry was in range or not
+bool zipValidate(const char* input, int zipEntry); // ensures that it is 5 characters an integer and within range
+bool charValidate(const char* input); // validates to make sure only a single character was entered
+double stringToDouble(char* inputStr); // converts a string to a double and returns the double
+void adminSetup(SEAT** headPtr, int noSeatTypes, char* inputStr, double* charityPercent);
+bool adminPinValidate(char* inputStr); // validates the pin entered
+SEAT* levelFound(SEAT* headPtr, const char* signal); //returns the address of the level that was signaled by a character
+bool yesNo (char* entry); // returns true for yes and false for no
+bool salesMode(SEAT* headPtr, double charityPerc); // function that sells tickets returns true only if quit was entered and the admin entered a successful pin
+
+
+int main(void)
+{
+    bool pinSuccess= false;// to make sure the pin was entered successfully
+    bool seatNumber = false; // makesure that the admin puts in a valid integer for ammount of seat types
+    bool quit = false; // value that will turn true if admin successfully quit sales mode
+    int noSeatLevels = 0; // initiaializes number of seat types
+    char input[STRING_MAX] = {'\0' }; // string for input
+    SEAT* headPtr= NULL; // initiailize headPtr to be at nothing
+    double charityPerc = 0.0; // inititalization of charity value
+
+    
+    pinSuccess=(adminPinValidate(input)); // returns true if successful
+    
+    if (pinSuccess == true) // only runs if true
+    {
+        while(seatNumber == false) // makesure valid int
+        {
+            puts("Hello Dave, how many seat levels are needed for the event?");
+            noSeatLevels=(intConvert(input));
+            if(noSeatLevels != -99) // if it is -99 it was never modified and thus invalid
+            {
+                seatNumber = true;
+            }
+            else
+            {
+                puts("Please try again");
+            }
+        }
+        
+        adminSetup(&headPtr, noSeatLevels, input, &charityPerc); // sends necessary information to admin setup
+        
+        while(quit == false) // runs until a confirmed quit code and pin entry take place
+        {
+            quit=(salesMode(headPtr, charityPerc)); // sends the start of the list and a copy of the charity percent
+        }
+        
+    }
+
+    puts("This program can serve no purpose anymore, Goodbye."); // end of main
+    
+    return 0;
+}
+
+
+/*
+    Function to create absolute paths to files takes defined paths and concatenates them in order to have the path fully written
+    it directly modifies the path so that other functions outside of itself have access to the data
+*/
+void getFilePath(char* finalPath, const char* directoryPath, const char* fileName)
+{
+    strcpy(finalPath, directoryPath);
+    strcat(finalPath, fileName);
+}
+
+
+/*
+  Function that writes or appends a file it recieves the file path after the getfilepath runs the charity percent and a signal for which path to take w would run the write path, r would run the read path and a runs the append path the function returns whether it successfully was able to open and access the file. The function also receives a formatted string that contains what information needs to be written. This function prints to console and to the file sent.
+*/
+bool w_or_a_ToFile(const char* formattedList, const char* filePath, char signal, double charityPercent)
+{
+    FILE* saleFile; //ptr to a flie path
+    
+    char header[PATH_MAX] = {'\0'}; // creates a header for the adminSummary
+    
+    bool wORa = false; //able to write or append
+    
+    if (signal == 'w') // write path
+    {
+        if ((saleFile = fopen(filePath, "w")) == NULL) // checks to make sure the file can be created
+        {
+            puts(HAL_MESSAGE);
+            puts("file could not be written");
+        }
+        else // if it can
+        {
+            wORa=true; // it was successful
+            puts("Generating Sales Report..."); // informs the console what is happening
+            
+            sprintf(header, "\n%s\nSummary of %s Ticket Sales with %.2lf%% Donation to %s:\n%s\n%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", DIVIDER, EVENT_NAME, charityPercent, CHARITY_EVENT, DIVIDER, LEVEL, PRICE, SOLD, SALES, CHARITY); // creates a formatted header for the adminSummary
+            fputs(header, saleFile); //prints the header to the file
+            fputs(formattedList, saleFile); // and the formatted sales report to the file
+            puts(header); // prints header and formatted data to the console
+            puts(formattedList);
+        }
+    }
+    
+    else if (signal == 'a') //append path
+    {
+        if ((saleFile = fopen(filePath, "a")) == NULL) //if the file does not exist
+        {
+            puts(HAL_MESSAGE);
+            puts("file does not exist"); //would you like to create one? would need to pass directory info
+        }
+        else
+        {
+            wORa= true; // file exists so append bility is true
+            puts("Generating Receipt...");//informs console what is happening
+            fputs(formattedList, saleFile); //prints formated user specific sales data to file
+            puts(formattedList); // prints the info to the console
+        }
+    }
+    
+    else //read case signal would be r  ////////not necessary just trying to catch or think about how it could be utilized at a later time
+    {
+        if ((saleFile = fopen(filePath, "r")) == NULL) //if the file does not exist
+        {
+            puts(HAL_MESSAGE);
+            puts("file can not be read"); //would you like to create one? would need to pass directory info
+        }
+        else
+        {
+            wORa=true;
+        }
+        
+    }
+    fclose(saleFile); // closes the file
+    return wORa; //returns if it was successful or not
+}
+
+
+/*
+    Function to determine if access is deserved recieves a string to be able to modify convert to an int and validate that the pin was successsful matched with the expected pin returns if successful or not
+ 
+*/
+bool adminPinValidate(char* inputStr)
+{
+    bool pinSuccess = false;
+    int pinEntered = 0;
+    
+    for (size_t i= 0; i < ADMIN_TRIES; i++) // repeats for the given attempts
+    {
+        puts("Enter ADMIN pin to continue");
+        pinEntered = (intConvert(inputStr)); // takes data and converts it to an integer
+        
+        if (pinEntered == ADMIN_PIN) // if it matches
+        {
+            pinSuccess = true; //it was successful
+            i = ADMIN_TRIES; //escapes the for loop
+        }
+        
+        else if(pinEntered == -99) // if it was -99 it was never modified and thus not a successful entry
+        {
+            printf("You have %d tries remaining\n", ((int)(ADMIN_TRIES - (i+1)))); // informs how many attempts are left
+        }
+        
+        else // case for when valid numerical is entered but it does not match the pin
+        {
+            puts(HAL_MESSAGE);
+            puts("Your access code is invalid");
+            printf("You have %d tries remaining\n", ((int)(ADMIN_TRIES - (i+1))));
+        }
+    }
+    
+    if(pinSuccess==false) // happens after the admin tries are exhausted and the success is still false
+    {
+        puts(HAL_MESSAGE);
+        puts("This mission is too important for me to allow you to jeopordize it.");
+    }
+    
+    return pinSuccess; // returns if successful or not
+}
+
+
+/*
+ Function that recieves a string that recieved input and the int converion of the string
+ it then determines if the length is the ZIP_LENGTH ammount and that it is within range if it is both
+ then the zip has been validated
+*/
+bool zipValidate(const char* input, int zipEntry)
+{
+    bool validZip = false;
+    int length = 0;
+    
+    length = (int)strlen(input); // determines the length of the string disincluding the null char
+    
+    if(length != ZIP_LENGTH) // if it doesnt equate the length
+    {
+        puts(HAL_MESSAGE);
+        puts("wrong number of characters"); // was not a valid entry
+    }
+    
+    else
+    {
+        validZip = (rangeCheck(zipEntry, ZIP_MIN, ZIP_MAX)); //make sure it is in range
+    }
+    
+    return validZip; // if it is return true
+}
+
+
+/*
+ Function to validate character input very similar to zip validate but has no int received
+*/
+bool charValidate(const char* input)
+{
+    bool validChar = false;
+    int length = 0;
+    
+    length = (int)strlen(input); // checks the length
+    
+    if(length != CHAR_LENGTH) // makes sure that it i the length that is desired, in this case 1
+    {
+        puts(HAL_MESSAGE);
+        puts("Not a single character");
+    }
+    else
+    {
+        validChar = true; // if it is then it is true
+    }
+    
+    return validChar; //returns if it was a single char or not
+}
+
+
+/*
+    Function that is sent double data a min and max and returns true if that information is within range
+*/
+bool rangeCheck(double receivedNo, double min, double max)
+{
+    bool inRange = false;
+    
+    if((min <= receivedNo) && (max >= receivedNo)) // checks range ends
+    {
+        inRange=true;
+    }
+    
+    else // if not within range
+    {
+        puts("Entry out of range");
+    }
+    return inRange; // return if in range or not
+}
+
+
+/*
+    Function that converts  a string to a double and if successful then converts the information to an integer it returns the integer if it passes the strictInt function test
+*/
+int intConvert(char* input) // can i make this constant somehow
+{
+    bool strictInt(double convertedDouble); // function prototype
+    
+    bool validInt = false; // for flag to make sure it is a strict int
+    double doubledString = 0.0; // initialize
+    int convertedInt = -99; // initialize converted int if it remains -99 it was never modified
+
+    doubledString =(stringToDouble(input)); // converts to double
+    
+    if (doubledString != -99.9) // if double is -99.9 it was an unsuccessful double conversion
+    {
+        validInt =(strictInt(doubledString)); //since it as not -99.9 then make sure it can be divided by its cast int version of itself and produce 1 no remainder
+    
+        if (validInt == true)
+        {
+            convertedInt=((int)doubledString); // if it was all successful the doulbe can be converted to a integer with no loss of data
+        }
+    }
+    
+    else // case when doubled string = -99.9
+    {
+        puts("Invalid numerical information supplied");
+    }
+    
+    return convertedInt; // returns the converted int would return -99.9 if unsuccessful
+}
+
+
+/*
+  Function that recieves a double and ensures that it can be converted to an integer with no loss of data returns if it was successful or not
+*/
+bool strictInt(double convertedDouble)
+{
+    bool success = false;
+    double conversion = -99.9;
+    
+    if(convertedDouble != 0.0) // if the number received is not zero
+    {
+        conversion = (convertedDouble/((int)convertedDouble)); // divide the double value by its self cast as an int, if it is anything besides 1 then the double includes decimal value that would be lost in translation
+        if (conversion == 1)
+        {
+            success = true; // if it returns 1 then it was an int
+        }
+        else // function had fractional information associated with it
+        {
+            puts(HAL_MESSAGE);
+            puts("Number is not a whole integer");
+        }
+    }
+    else //takes care of 0 case
+    {
+        success = true; // 0 is a valid int but it is illegal to divide by 0
+    }
+    return success;// returns whether or not the int was fractionless or not
+}
+
+
+/*
+    Function that gets input from the user and ensures that entry was made returns if it was succesful or not, it also modifies the entry by truncating the \n character.
+*/
+bool getInfo(char* inputStr)
+{
+    bool successful = false;
+    
+    successful=(fgets(inputStr, STRING_MAX, stdin));
+    
+    for (size_t i = 0; i <= STRING_MAX; i++) // checks each element to see if \n is present if it is
+    {
+       if (inputStr[i] == '\n')
+        {
+           inputStr[i] = '\0'; //replace with null
+            i = STRING_MAX; //exit for loop as the rest is already inititalized to null
+        }
+        
+    }
+    return successful; // returns success of valid entry
+}
+
+
+/*
+    Function that takes string information and converts it to a double value, makes sure that tha value is within range and if it is returns a modified double value if it was not successful it returns -99.9 and raises some flag warnings printed to the console
+*/
+double stringToDouble(char* inputStr)
+{
+    bool getInputSuccess = false;
+    double value = -99.9;
+    char* remaining = NULL;
+    
+    getInputSuccess=(getInfo(inputStr)); // gets input from user
+    
+    if(getInputSuccess == true) // if successfully recieved input
+    {
+        double conversion = strtod(inputStr, &remaining); // convert str to double
+    
+        if(remaining == inputStr) // if the double is null
+        {
+            puts(HAL_MESSAGE);
+            puts("No valid entry was made"); // nothing was entered
+        }
+        else if (*remaining != '\0') // if what is remaining is not the null character then excess information is included
+        {
+            puts(HAL_MESSAGE);
+            puts("invalid entry");
+        }
+    
+        else if((LONG_MIN < conversion) && (LONG_MAX > conversion)) // if it falls within the max and min range
+        {
+            value = conversion; // then it is a successful conversion assign the converted value to value that will be returned
+        }
+    
+        else // case for when not in range but successful numerical
+        {
+            puts(HAL_MESSAGE);
+            puts("invalid entry range error");
+        }
+    }
+    
+    else // read was invalid
+    {
+        puts(HAL_MESSAGE);
+        puts("Unable to get input");
+    }
+    
+    return value; // returns value of double string converted if successful or -99.9 if it was never modified
+}
+
+
+/*
+    Function that allows admin to insert seat types into the linked list it recievesthe address of the head(modifiable) and the string for the name of the seat the signal selected and the price the admin assigned, it then finds the place that th data must be inserted in the list so that the function can be organized by alphabetically by signal character
+*/
+void insertLevel(SEAT** headPtr, const char* seatLevel, const char* signal, double price)
+{
+    SEAT* levelPtr = malloc(sizeof(SEAT)); // allocates memmory for elements in the linked list
+    
+    if (levelPtr != NULL) // makes sure that the level being pointed to is not null
+    {
+        strcpy(levelPtr->name, seatLevel); //copies the name to the list
+        strcpy(levelPtr->sigChar, signal); // copies the character to the list
+        levelPtr->price = price; // assigns the price
+        levelPtr->numOTix = 0; // initializes number of tickets
+        levelPtr->sales = 0; // initializes sale amount
+        levelPtr->raisedForCharity = 0; // initializes donation amount
+        levelPtr->nextLevel = NULL; // changes the address of the next element being pointed to null
+        SEAT* previousLevel = NULL; // creates a pointer to hold the address of the element previos in seat type
+        SEAT* currentLevel = *headPtr; // assigns the currentLevel as the head
+    
+        while ((currentLevel != NULL) && (strcmp(currentLevel->sigChar, signal) < 0)) // if the signalcharacter evaluated to the signal recieved is less than 0 the other signal characters in the list are alphabetically superior so move to the next level
+        {
+            previousLevel = currentLevel;
+            currentLevel = currentLevel->nextLevel;
+        }
+    
+        if(previousLevel == NULL) // if it is the most alphabetically supperior charcter then its address is the head
+        {
+            *headPtr = levelPtr;
+        }
+        
+        else // otherwise
+        {
+            previousLevel->nextLevel = levelPtr; // the previousLevel no points to it
+        }
+        
+        levelPtr->nextLevel = currentLevel; //and this level points to what level we are at currently
+    }
+    
+    else
+    {
+        puts(HAL_MESSAGE);
+        puts("Not enough memory allocated");
+    }
+}
+
+
+
+/*
+    Function where the admin setups all of the information tht will be used in sales mode
+        it receives the address of the head(modifiable because it passes this to the insertLevel function), the number of seat types
+        entered by the admin a string for input and the address of the charitypercent value to modify in main. once this function completes then sales mode can be entered
+*/
+void adminSetup(SEAT** headPtr, int noSeatTypes, char* inputStr, double* charityPercent)
+{
+    double price = 0.0; // initialization
+    double charity =0.0;
+    char seatLevel[STRING_MAX] = {'\0'}; // string to hold name
+    char signalChar[STRING_MAX] = {'\0'}; // string to hold character
+    bool charitySuccess = false; //flag for charity entry
+    
+    void insertLevel(SEAT** headPtr, const char* seatLevel, const char* signal, double price); // function prototypes
+    void adminSeatInfo(SEAT* signalOrderedPtr);
+    
+    while(charitySuccess == false)  //get valid charity percent to update in main, also checks to see if the entry is less than 1 and if it is multiply by 100, this is to be able to accept 20% as 0.2, before sending to the range check function
+    {
+        printf("Please enter the percentage of sales donated to charity %.2lf-%.2lf\n", CHARITY_MIN, CHARITY_MAX);
+        charity=(stringToDouble(inputStr)); //tells admin the acceptable range
+        
+        if(charity <= 1.0) // if percentage is entered in decimal
+        {
+            charity*=100; // multiply by 100
+        }
+        
+        charitySuccess=(rangeCheck(charity, CHARITY_MIN, CHARITY_MAX)); // check that is within range
+        if (charitySuccess == false)
+        {
+            puts("Please try another value"); // if it is not
+        }
+        else
+        {
+            *charityPercent = charity; // if it is update info in main
+        }
+    }
+
+    for (size_t i= 0; i < noSeatTypes; i++) //recieves number of seat types to enter
+    {
+        bool seatNameSuccess = false; // flags need to be identified in here so that they can be reinitialized to false after each entry
+        bool setPriceSuccess = false;
+        bool setCharSuccess = false;
+        
+        printf("You have %d seat types to setup\n", ((int)(noSeatTypes - i))); // informs admin howmany seat types left to enter
+        while (seatNameSuccess == false) // while reading the name is false
+        {
+            puts("Enter a Seat Level Name to include:"); // get a name
+            seatNameSuccess=(getInfo(seatLevel));
+            if (seatNameSuccess == false)
+            {
+                puts("Please try again.");
+            }
+        }
+        seatLevel[0]=toupper(seatLevel[0]); // capitalize the first letter
+        
+        while (setCharSuccess == false)// while setting a signal character is not true
+        {
+            puts("Enter a signal for this seat level in Sales mode:");
+            setCharSuccess=((getInfo(signalChar)) && (charValidate(signalChar))); // enter one
+        }
+        signalChar[0]=toupper(signalChar[0]); // capitalize
+        
+        while (setPriceSuccess == false) // while price entered is not valid
+        {
+            printf("Please enter the ticket price for these seats %s%.2lf-%s%.2lf\n", CURRENCY_TYPE, PRICE_MIN, CURRENCY_TYPE, PRICE_MAX);
+            price=(stringToDouble(inputStr)); // enter price
+            setPriceSuccess=(rangeCheck(price, PRICE_MIN, PRICE_MAX)); //and check range
+        }
+        
+        insertLevel(headPtr, seatLevel, signalChar, price); // once all valid information has been recieved pass information to insert list function
+    }
+    
+    insertLevel(headPtr, "Total Sales", "Z (ADMIN ONLY)", 0); // after the admin enters all of the information it wants the final element in the linked list is added Z places it directly at the end added more than one char because when it was just z the user had access to the total sales linked list which was a bad thing. This list element will hold the totals of all the other elements to make the printing and manipulation of the list much easier and more compact.
+    
+    adminSeatInfo(*headPtr); //prints all of the information that was entered into the linked list just to validat to the admin what was entered
+    
+    puts("Dave, I have successfully compiled the information and will begin sales mode."); // informs where the program is headed
+}
+
+
+/*
+    Function to display admins entries to the admin not necessary but just an ease of mind for the admin before sales mode is entered. It receives the address of the headptr once the list has been alphabatized.
+*/
+void adminSeatInfo(SEAT* signalOrderedPtr)
+{
+    if(signalOrderedPtr != NULL) // makes sure that what was passed was not empty
+    {
+        puts("\nDave, the seat levels are:");
+        SEAT* currentLevel = signalOrderedPtr; // sets the current level to the alphabatized lists head ptr
+        
+        while (currentLevel != NULL) // loops until the level is NULL
+        {
+            printf("Name: %s\nSignal: %s\nPrice: %s%.2lf\nNumber of Tickets: %d\nTotal Sales: %s%.2lf\nRaised for charity: %s%.2lf\n\n", currentLevel->name, currentLevel->sigChar, CURRENCY_TYPE, currentLevel->price, currentLevel->numOTix, CURRENCY_TYPE, currentLevel->sales, CURRENCY_TYPE, currentLevel->raisedForCharity); // prints all of the data in the list to make sure it was all initialized properly
+            currentLevel = currentLevel->nextLevel; // moves to the next level
+        }
+    }
+    else // if what was sent was null
+    {
+        puts(HAL_MESSAGE);
+        puts("There is no information to print"); // the list was never filled and thus empty
+    }
+}
+
+
+/*
+    Function that returns the address of the total sales linked list element. it gets passed the head and increments through each element and sums all of the bits of information (number of tickets sold, total sales, and donation amount) once the list has been exhausted all of the summed values are then stored into the total sales list element.
+*/
+SEAT* totalSales(SEAT* listOfSales)
+{
+    int totalTickets = 0; // initialize holders for sums
+    double totalDonation = 0.0;
+    double totalPrice = 0.0;
+    SEAT* salesLevel = NULL; // level returned its the address to the total sales list element
+    
+    if(listOfSales != NULL) //  as long as the list is not empty
+    {
+        SEAT* currentLevel = listOfSales; // the current level is set to the head
+        
+        while (currentLevel->nextLevel != NULL) //while what current level is pointing to is not NULL (this is so that all information besides the total sale information is summed
+        {
+            totalTickets+=currentLevel->numOTix; // take data from each type and sum together into the holder values
+            totalDonation+=currentLevel->raisedForCharity;
+            totalPrice+=currentLevel->sales;
+            currentLevel = currentLevel->nextLevel; // move to the next element
+        }
+        
+        salesLevel= currentLevel; // now that the current elements next element is null we have reached the adminSales level
+        
+        salesLevel->numOTix = totalTickets; // assign all of the data points to their respective places
+        salesLevel->sales = totalPrice;
+        salesLevel->raisedForCharity = totalDonation;
+    }
+    else
+    {
+        puts(HAL_MESSAGE); // what was pointed to was Null so no information is in the list
+        puts("List has no contents");
+    }
+    return salesLevel; // returns the address of the Admins information in the linked list was originally intending on using this in the admin print function but I found that the head is still more useful because i need data from all other list elements, regardless i kept this because the admin may want to be able to check what the total sales are at anytime without quiting completely and this would give them direct access to the location of the data. If a pause was introduced the admin level would need to get moved into the while loop so just remove the ->nextLevel part.
+}
+
+
+/*
+    Function that recieves the address of the head of the linked list and a copy of the charity percentage it then produces the output that is shown in sales mode for when ticket selection is available, this is a 'dumbed down' or more restrictive vs of the adminSeatInfo function.
+*/
+void userSeatInfo(SEAT* signalOrderedPtr, double charityPerc)
+{
+    if(signalOrderedPtr != NULL) // checks to make sure it is not empty
+    {
+        puts("The available seat levels are:"); // begins seat display
+        SEAT* currentLevel = signalOrderedPtr;
+        
+        while (currentLevel->nextLevel != NULL) // do not want to display admins element in the list so check to make sure that the currents next is not null
+        {
+            printf("%s (%s) %s%.2lf\n", currentLevel->name, currentLevel->sigChar, CURRENCY_TYPE, currentLevel->price); // print all seat types
+            currentLevel = currentLevel->nextLevel; // move to next list element
+        }
+        printf("%.2lf%% of your ticket purchase will be donated to %s\n", charityPerc, CHARITY_EVENT); // display charity percent that will be donated
+    }
+    else // the list passed was NUll and thus empty
+    {
+        puts(HAL_MESSAGE);
+        puts("There are no available seats for purchase");
+    }
+}
+
+
+/*
+    Function to format the user specific input for the receipt takes in copies of all of the users data and writes the information to the userString that was passed.
+*/
+void userReceiptFormat(char* userString, int userNumTix, SEAT* levelSelected, double totalPrice, double donation, double charityPercent)
+{
+    
+    sprintf(userString, "%s\n%s Ticket Sale Receipt\n\n%s x %d @ %s %.2lf\nYour total is: %.2lf\n%.2lf%% of your sales (%s%.2lf) was donated to %s\nTHANK YOU FOR YOUR PURCHASE!\n%s\n", DIVIDER, EVENT_NAME, levelSelected->name, userNumTix, CURRENCY_TYPE, levelSelected->price, totalPrice, charityPercent, CURRENCY_TYPE, donation, CHARITY_EVENT, DIVIDER);
+    
+}
+
+
+/*
+    Function to format the adminSalesReport recieves the address of the head and a string to modify
+*/
+void adminSalesSummaryFormat(SEAT* headPtr, char* salesString)
+{
+    SEAT* adminLevel = NULL; // initializes adminLevel
+    char tmpStr[SUMMARY_MAX] = {'\0'}; // creates a temporary string to hold information before concatenating with the string that was passed
+    
+    if (headPtr != NULL) // makes sure what was passed was not empty
+    {
+        SEAT* currentLevel = headPtr; // if it was not then the current level is the head
+        // take all of the information from the head and format it onto the sales string
+        sprintf(salesString, "%-10s\t%s%-10.2lf\t%-10d\t%s%-10.2lf\t%s%-10.2lf\n", currentLevel->name, CURRENCY_TYPE, currentLevel->price, currentLevel->numOTix, CURRENCY_TYPE, currentLevel->sales, CURRENCY_TYPE, currentLevel->raisedForCharity);
+        currentLevel= currentLevel->nextLevel; // move to the next level
+        
+        while(currentLevel->nextLevel != NULL) // iterate until you reach the admin level
+        {
+            //write all the information to the temporary string
+            sprintf(tmpStr, "%-10s\t%s%-10.2lf\t%-10d\t%s%-10.2lf\t%s%-10.2lf\n", currentLevel->name, CURRENCY_TYPE, currentLevel->price, currentLevel->numOTix, CURRENCY_TYPE, currentLevel->sales, CURRENCY_TYPE, currentLevel->raisedForCharity);
+            //and concatenate it with the salesString
+            strcat(salesString, tmpStr);
+            currentLevel= currentLevel->nextLevel; // move to the next level
+        }
+        
+        adminLevel = currentLevel; // the level that exists currently is the admin level
+        sprintf(tmpStr, "\n\nTotal Ticket Sales: %s%.2lf\nTotal Raised For Charity: %s%.2lf\n", CURRENCY_TYPE, adminLevel->sales, CURRENCY_TYPE, adminLevel->raisedForCharity); //access the data fields for the last bits of information and write them on the temporary string
+        //then concatenate last bit of info onto the sales string.
+        strcat(salesString,tmpStr);
+    }
+}
+
+
+/*
+    Function that returns the address of the linked list element that matches the users input returns null if user input does not match any of the signal characters that have been set by the admin. it recieves the address of the head and the signal character that the user input.
+*/
+SEAT* levelFound(SEAT* headPtr, const char* signal)
+{
+    SEAT* previousLevel = NULL; // sets previous level to nothing
+    SEAT* currentLevel = headPtr; // and current to the head
+    
+    if((strcmp(currentLevel->sigChar, signal)) == 0)
+    {
+        currentLevel= headPtr; //current level should already be headptr but if it is necessary to remove or alter this if block can be useful in a future use
+    }
+    else // if its not the head
+    {
+        previousLevel = headPtr; // move the previous to the head
+        currentLevel = headPtr->nextLevel; //and the current to heads next
+        
+        while((currentLevel != NULL) && (strcmp(currentLevel->sigChar, signal)) != 0) // while signal is not matched and the list is not at the end
+        {
+            previousLevel = currentLevel; // traverse the list
+            currentLevel = currentLevel->nextLevel;
+        }
+        
+        if(currentLevel == NULL) // current level went through the list and found no match
+        {
+            printf("'%s' is not a valid seat signal\n", signal); // displays character sent and its unsuccessful status
+        }
+    }
+    return currentLevel; // returns the level that the user matched with so that other functions can utilize the informaton to display or alter data.
+}
+
+
+/*
+    Function that runs sales mode it is a process of functions and glues together their results into making successul sales. It returns false until the admin has entered quit and the admin has validated the quit signal with the admin pin. The function recieves only the headptr and the charity percent from main but holds many processes and functions within.
+*/
+bool salesMode(SEAT* headPtr, double charityPerc)
+{
+    //boolean flags
+    bool quit = false;// flag that is returned turns true when signal and admin pin are successful
+    bool pinSuccess= false;
+    bool readInput = false; //makes sure data for seat name can be read
+    bool validSelection = false; // makes sure that the signal was in the list
+    bool singleChar = false; // makes sure that the character was a single character
+    bool receiptConfirmation = false; // value to determine if the user wants a receipt or not
+    bool fileSuccess = false; // value for if the file was able to be utilized correctly
+    bool validZip = false; // value for success of the zipcode entry
+    
+    //values to hold user information so that they can be used in the receipt or sent to the total sales linked list element
+    int userTickets = 0;
+    int zip= 0;
+    double userPrice = 0.0;
+    double userDonation = 0.0;
+    
+    //initialization of ptrs to levels that are utilized within the function
+    SEAT* userLevel = NULL;
+    SEAT* adminLevel = NULL;
+    
+    // inititalization of strings to hold different types of data
+    char zipEntry[STRING_MAX] = {'\0'}; // zipentry
+    char selection[STRING_MAX] = {'\0'}; // seat selection and character input
+    char receiptStr[SUMMARY_MAX] = {'\0'}; // what is used for formatting the data for sales reports
+    char summaryPath[PATH_LENGTH] = {'\0'};//paths to files
+    char receiptPath[PATH_LENGTH] = {'\0'};
+    
+    
+    //function prototypes
+    void userSeatInfo(SEAT* signalOrderedPtr, double charityPerc);
+    int packageSelect(void);
+    double tixCalc(double tixPrice, double numOTix);
+    double charCalc(double cost, double charPerc);
+    void getFilePath(char* finalPath, const char* directoryPath, const char* fileName);
+    void userReceiptFormat(char* userString, int userNumTix, SEAT* levelSelected, double totalPrice, double donation, double charityPercent);
+    bool w_or_a_ToFile( const char* formattedList, const char* filePath, char signal, double charityPerc);
+    SEAT* totalSales(SEAT* listOfSales);
+    void adminSalesSummaryFormat(SEAT* headPtr, char* salesString);
+    
+    
+    //creates absolute paths to the files that are utilized within this function
+    getFilePath(summaryPath, DIRECTORY_PATH, SALES_FILE);
+    getFilePath(receiptPath, DIRECTORY_PATH, RECEIPT_FILE);
+    
+    
+    // display at the top of sales mode
+    printf("\nWelcome to HAL's %s %s ticket Sales!\n", EVENT_NAME, CHARITY_EVENT);
+    
+    // iterates until the users seat selection is valid and confirmed
+    while(validSelection == false)
+    {
+        userSeatInfo(headPtr, charityPerc); // displays available ticket types
+        puts("What type of ticket would you like to purchase?"); // prompts user
+        readInput = (getInfo(selection)); // checks to see if could read data
+        if (readInput == true) // if it could read data
+        {
+            if(strcmp(selection, QUIT) == 0) // see if they entered a quit command
+            {
+                pinSuccess=(adminPinValidate(selection)); //  if they did check to see if they enter the pin corretly
+                if(pinSuccess == true) // if the pin is entered successfully
+                {
+                    quit = true; // change quit to true
+                    validSelection = true; // and exit the while loop since a valid selection was made
+                }
+            }
+            else // if not quit need to test to make sure entry was a single character
+            {
+
+                singleChar=(charValidate(selection)); // make sure it is a single character
+                selection[0]=toupper(selection[0]); // uppercase the entry
+                if (singleChar == true)
+                {
+                    userLevel =(levelFound(headPtr, selection)); // check to see if entry matches any in the linked list
+                    if (userLevel != NULL) // if it points to something
+                    {
+                        printf("You have selected %s, do you wish to continue?\n", userLevel->name); // display what it points to
+                        
+                        validSelection = yesNo(selection); // confirm their selection if it is a yes they will exit while
+                    }
+                    else // if not in the list
+                    {
+                        puts("Please try again");
+                    }
+                }
+                else // if not a single char
+                {
+                    puts("Please try again");
+                }
+            }
+        }
+    }
+    
+    if(quit == false) // once while is broken if quit is still false
+    {
+        userTickets = (packageSelect()); //make user select a package
+        userLevel->numOTix+= userTickets; // update data fields
+        userPrice = (tixCalc(userLevel->price, userTickets)); //calculates price
+        userDonation= (charCalc(userPrice, charityPerc)); // calculates donation amount
+        userLevel->sales+=userPrice; // updates linked list
+        userLevel->raisedForCharity+=userDonation; // updates linked list
+        //little summary blurb
+        printf("For your %d %s tickets to the %s your total cost is %s%.2lf, %s%.2lf of which will be donated to %s\n", userTickets, userLevel->name, EVENT_NAME, CURRENCY_TYPE, userPrice, CURRENCY_TYPE, userDonation, CHARITY_EVENT);
+        
+        while(validZip==false) // confirm purchase with zip
+        {
+            puts("Please enter your 5 digit zip to complete your purchase:");
+            zip=(intConvert(zipEntry)); // converts to an int
+            validZip=(zipValidate(zipEntry, zip)); //checks that what was entered was 5 characters and a valid int
+        }
+
+        puts("Would you like a receipt?"); //prompts user for receipt
+        receiptConfirmation= (yesNo(selection)); // returns true if yes
+        if (receiptConfirmation == true)
+        {
+            
+            userReceiptFormat(receiptStr, userTickets, userLevel, userPrice, userDonation, charityPerc); // formats user specific information
+            fileSuccess=(w_or_a_ToFile(receiptStr, receiptPath, 'a', charityPerc)); // that is passed to the file to be appended and to print on the console
+            if (fileSuccess!=true) // if file had issues no data was able to be written
+            {
+                puts("file error");
+            }
+            
+        }
+
+    }
+    else // if quit was successful
+    {
+        adminLevel=(totalSales(headPtr)); // the admin level is the last element in the list
+        if(adminLevel != NULL) // make sure its not pointing to nothing
+        {
+            adminSalesSummaryFormat(headPtr, receiptStr); // format sales information
+            fileSuccess=(w_or_a_ToFile(receiptStr, summaryPath, 'w', charityPerc)); //send to write function and the console
+            if (fileSuccess!=true) // if file had error nothing is printed
+            {
+                puts("file error");
+            }
+        }
+        else //if nothing was sent to be printed something was wrong with the data
+        {
+            puts("Trouble compiling sales");
+        }
+        
+        
+    }
+    return quit; // returns the value of quit should be false unless a successful quit sequence is enacted
+}
+
+
+/*
+    Function to calculate the price of a sale takes the number of tickets and the price of said ticket  and multiplies them together returns the result of the multiplication.
+*/
+double tixCalc(double tixPrice, double numOTix)
+{
+   double totalPrice = 0.0;
+   totalPrice = tixPrice * numOTix;
+   return totalPrice;
+
+}
+
+
+/*
+    Function that calulates the amount donated to charity receieves the charity donation percentage and the cost of the tickets purchased (in the tixCalc function) and multiplies them together, function returns the ammount that is donated to charity.
+*/
+double charCalc(double cost, double charPerc)
+{
+    double whatsDonated = 0.0;
+    whatsDonated = cost * (charPerc /100);
+    return whatsDonated;
+}
+
+
+/*
+    Function that validates the users package selection it recieves nothing but returns the value of the tickets (number of tickets)
+*/
+int packageSelect(void)
+{
+    int package = 0; // initialization of values
+    int packageVal = 0;
+    bool confirmed = false;
+    char packageSelect[STRING_MAX] = {'\0'};
+    char ynSelect[STRING_MAX] = {'\0'};
+
+    while(confirmed == false)// does not escape until a valid selection has been made
+    {
+        bool validType = 0;
+        while (validType == false) // only breaks when a valid entry has been made and confirmed
+        {
+            puts("Package options are: ");
+            for (size_t i = 0; i < PACKAGETYPES; i++) //loops through the package types
+            {
+                printf("%d%s\t%s\n", PACKAGES[i], ")", PACKAGENAMES[i]); //print the name of the package and the numerical selection key
+            }
+
+            puts("Enter your package selection:");
+            package = (intConvert(packageSelect)); //checks user entry to see if it is an int
+        
+            if(package == -99) // if package type is -99 a valid int was not entered
+            {
+                puts("Not an acceptable selection");
+            }
+        
+            else
+            {
+                for (int i = 0; i < PACKAGETYPES; i++)
+                {
+                    if (package == PACKAGES[i])  //loops through the entire array checking for equivalency at each index of the array
+                    {
+                        packageVal = (i+1); // takes the value of the index that was equivalent, the value of the package selected since each package selector corresponds with the number of tickets this value can just be saved and assigned to number of tickets, if the package identifier was different then the number of tickets held by the package then the package value would need to be utilized to find the nuber of tickets
+                        i = PACKAGETYPES;  //sets it to the end of the array in order for the loop to end once the value has found equivalency
+                    }
+                }
+                if (packageVal != 0) //since zero tickets is not an option but zero is what is utilized to initialize the packageVal
+                {
+                    validType = true;
+                }
+                else
+                {
+                    puts("Not an available package type"); // if it is zero it was never modified
+                }
+            
+            }
+        }
+        printf("You have selected the %s do you wish to continue?\n", PACKAGENAMES[(packageVal-1)]); // shows package selection name
+        
+        confirmed=(yesNo(ynSelect)); // confirms the package selection and escapes the while
+
+    }
+
+    return packageVal; //returns value of number of tickets
+}
+
+
+/*
+    Function to get the validation of yes or no from user returns false if no is selected and returns true if yes is selected, recieves a string to modify.
+*/
+bool yesNo (char* entry)
+{
+    //bool flags to move through sequence
+    bool validChar = false;
+    bool validYN = false;
+    bool yN = false;
+    
+    while (validYN == false) //makes sure that a y or an n was entered
+    {
+        puts("Enter Y or N");
+        validChar=((getInfo(entry))&&(charValidate(entry))); //result is true if could read input and input is a single character
+        entry[0]=toupper(entry[0]); // capitalize the entry
+        if(validChar == false) // if its not a valid entry
+        {
+            puts("Please try again");
+        }
+        else if(strcmp(entry, YNarray[1] ) == 0) // check to see if it is equivalent to the y element
+        {
+            yN=true; //sets return to true
+            validYN = true; //escapes the while
+        }
+        else if(strcmp(entry, YNarray[0] ) == 0) // check to see if its equivalent to the n element
+        {
+            puts("Returning to selection options..."); //since its a no they need to remake their selection
+            yN=false; // sets return to false
+            validYN = true; // escapes the while
+        }
+        else // not a y or n character entered
+        {
+            puts("Please try again");
+        }
+    }
+
+    return yN; //true for yes false for no
+}
